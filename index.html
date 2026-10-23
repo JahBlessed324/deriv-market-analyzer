@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b4968">
+<title>Deriv Market Analyzer</title>
+<style>
+:root{--navy:#083f5b;--teal:#21a9a5;--bg:#f3f7fa;--ink:#172a35;--muted:#627480;--line:#dce5eb;--green:#137a52;--red:#b43c45;--amber:#946200}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{background:linear-gradient(135deg,#073c59,#087a91);color:#fff;padding:22px 17px 24px}
+header h1{font-size:23px;margin:0 0 6px}header p{margin:0;color:#d8eef4;font-size:13px}
+main{max-width:900px;margin:auto;padding:14px}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px;margin-bottom:11px;box-shadow:0 3px 12px #0b334508}
+.label{font-size:12px;color:var(--muted);margin-bottom:7px}.value{font-size:24px;font-weight:750;overflow-wrap:anywhere}.small{font-size:12px;color:var(--muted);line-height:1.45}
+.pill{display:inline-block;border-radius:99px;padding:6px 10px;font-weight:750;font-size:12px;background:#eef3f6;color:#536570}
+button,select{font:inherit;border-radius:10px;border:1px solid #cbd8df;padding:11px 12px;background:#fff;color:var(--ink)}button{background:var(--teal);color:#fff;border:0;font-weight:750;cursor:pointer}button.secondary{background:#e8f0f4;color:var(--navy);border:1px solid #cbd8df}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.controls select{flex:1;min-width:145px}.controls button{flex:1;min-width:110px}
+h2{font-size:16px;margin:0 0 12px}.digit-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.digit{border:1px solid var(--line);border-radius:10px;padding:9px 4px;text-align:center;background:#fbfdfe}.digit strong{display:block;font-size:20px}.digit span{font-size:11px;color:var(--muted)}
+.bar{height:5px;background:#e8eef2;border-radius:9px;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--teal)}
+.status{font-size:13px;line-height:1.5}.decision{font-size:22px;font-weight:800}.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:9px 5px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600}
+.warning{background:#fff8e7;border:1px solid #f0d99c;border-radius:12px;padding:12px;font-size:12px;line-height:1.5;color:#664c10}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:10px 0 25px}
+@media(min-width:650px){.row{grid-template-columns:repeat(4,minmax(0,1fr))}.wide{grid-column:span 2}}
+</style>
+</head>
+<body>
+<header><h1>Deriv Market Analyzer</h1><p>Volatility 10 (1s) · Digits · Analysis-only prototype</p></header>
+<main>
+  <div class="card">
+    <div class="controls">
+      <select id="symbol"><option value="1HZ10V">Volatility 10 (1s)</option><option value="1HZ25V">Volatility 25 (1s)</option><option value="1HZ50V">Volatility 50 (1s)</option><option value="1HZ75V">Volatility 75 (1s)</option><option value="1HZ100V">Volatility 100 (1s)</option></select>
+      <button id="connect">Connect live data</button><button class="secondary" id="pause">Pause</button>
+    </div>
+    <p class="small" id="connection" style="margin:10px 0 0">Not connected. Tap “Connect live data”. No account login or API token is required.</p>
+  </div>
+  <div class="row">
+    <div class="card"><div class="label">Latest price</div><div class="value" id="price">—</div><div class="small" id="ticktime">Waiting for tick</div></div>
+    <div class="card"><div class="label">Latest last digit</div><div class="value" id="lastdigit">—</div><div class="small">Read from the displayed quote precision</div></div>
+    <div class="card"><div class="label">Ticks collected</div><div class="value" id="count">0</div><div class="small">Live ticks in this session</div></div>
+    <div class="card"><div class="label">Data quality</div><div class="value" id="quality">Insufficient</div><div class="small">Need at least 500 ticks for a basic sample</div></div>
+  </div>
+  <div class="card"><h2>Digit frequency (last 1,000 ticks)</h2><div class="digit-grid" id="digits"></div><p class="small">Frequency describes the sample; it does not mean an over-represented or under-represented digit is due to repeat.</p></div>
+  <div class="row">
+    <div class="card"><div class="label">Most frequent digit</div><div class="value" id="most">—</div><div class="small" id="mostfreq">Not enough data</div></div>
+    <div class="card"><div class="label">Least frequent digit</div><div class="value" id="least">—</div><div class="small" id="leastfreq">Not enough data</div></div>
+    <div class="card"><div class="label">Matches estimate</div><div class="value" id="matchp">—</div><div class="small">For selected digit, empirical sample rate</div></div>
+    <div class="card"><div class="label">Differs estimate</div><div class="value" id="differp">—</div><div class="small">Complement of selected digit's sample rate</div></div>
+  </div>
+  <div class="card">
+    <h2>Contract scenario check</h2>
+    <div class="controls">
+      <label class="small">Digit to match <select id="target" style="margin-left:5px"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select></label>
+      <label class="small">Total payout per $1 stake <input id="payout" type="number" min="1" step="0.01" value="8.00" style="width:100px;padding:8px;border:1px solid #cbd8df;border-radius:8px"></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <div><div class="label">Estimated break-even match rate</div><div class="value" id="breakeven">12.5%</div></div>
+      <div><div class="label">Observed sample rate</div><div class="value" id="observed">—</div></div>
+    </div>
+    <p class="small" id="payoutnote">Payout means total return including stake. Confirm the actual payout in Deriv before using this calculation.</p>
+  </div>
+  <div class="card">
+    <div class="label">ANALYZER DECISION</div><div class="decision amber" id="decision">WAIT</div><p class="status" id="reason">Connect to collect ticks. This prototype will not place trades.</p>
+  </div>
+  <div class="card">
+    <h2>Recent digits</h2><div id="recent" style="font-size:18px;letter-spacing:3px;line-height:1.8;overflow-wrap:anywhere">—</div>
+    <p class="small">Sequence shown for observation only. Repeated patterns do not establish predictive advantage.</p>
+  </div>
+  <div class="warning"><strong>Risk notice:</strong> This is an experimental statistics dashboard, not a validated prediction system. Digits may be effectively random. Historical frequency is not proof of a future edge, and a high-looking score is not a win probability. Use demo testing, verify payouts, and never risk money you cannot afford to lose. This page has no trade-placement code.</div>
+  <footer>Analysis only · No account authorization · No trades placed</footer>
+</main>
+<script>
+(() => {
+ const $ = id => document.getElementById(id);
+ const state = {ws:null, ticks:[], paused:false, symbol:"1HZ10V", reconnect:null, lastEpoch:null};
+ const MAX=1000;
+ function setConnection(s){$("connection").textContent=s}
+ function digitsFromPrice(price, pipSize){
+   const decimals = Number.isInteger(pipSize) ? pipSize : 2;
+   const fixed = Number(price).toFixed(Math.max(0, Math.min(10, decimals)));
+   const only = fixed.replace(/\D/g,"");
+   return only.length ? Number(only[only.length-1]) : null;
+ }
+ function render(){
+   const a=state.ticks, n=a.length, sample=a.slice(-MAX), counts=Array(10).fill(0);
+   sample.forEach(t=>counts[t.digit]++);
+   $("count").textContent=n.toLocaleString();
+   $("quality").textContent=n>=500?"Usable sample":n>=100?"Building":"Insufficient";
+   if(n){
+     const t=a[a.length-1]; $("price").textContent=t.quote; $("lastdigit").textContent=t.digit;
+     $("ticktime").textContent=t.epoch?new Date(t.epoch*1000).toLocaleTimeString():"Live tick";
+   }
+   const total=sample.length;
+   $("digits").innerHTML=counts.map((c,d)=>`<div class="digit"><strong>${d}</strong><span>${total?(100*c/total).toFixed(1):"0.0"}% · ${c}</span><div class="bar"><i style="width:${total?100*c/total:0}%"></i></div></div>`).join("");
+   if(total){
+     let max=Math.max(...counts),min=Math.min(...counts);
+     let hi=counts.indexOf(max),lo=counts.indexOf(min);
+     $("most").textContent=hi; $("mostfreq").textContent=`${max} of ${total} ticks (${(100*max/total).toFixed(1)}%)`;
+     $("least").textContent=lo; $("leastfreq").textContent=`${min} of ${total} ticks (${(100*min/total).toFixed(1)}%)`;
+     const d=Number($("target").value), p=counts[d]/total, payout=Number($("payout").value);
+     $("matchp").textContent=(p*100).toFixed(1)+"%"; $("differp").textContent=((1-p)*100).toFixed(1)+"%";
+     $("observed").textContent=(p*100).toFixed(1)+"%";
+     const be=payout>0?100/payout:NaN; $("breakeven").textContent=Number.isFinite(be)?be.toFixed(1)+"%":"—";
+     if(n<500){decision("WAIT","Collect at least 500 ticks before interpreting the sample.");}
+     else if(!Number.isFinite(payout)||payout<=1){decision("NO TRADE","Enter a valid total payout greater than $1 per $1 stake to calculate a break-even rate.");}
+     else {decision("WAIT","A historical sample rate alone is not evidence of a predictive edge. Validate out-of-sample and compare with the actual quoted payout before considering any trade.");}
+   } else { $("most").textContent="—"; $("least").textContent="—"; $("matchp").textContent="—"; $("differp").textContent="—"; $("observed").textContent="—"; }
+   $("recent").textContent=sample.slice(-80).map(x=>x.digit).join(" ");
+ }
+ function decision(d,r){$("decision").textContent=d;$("reason").textContent=r;$("decision").className="decision "+(d==="NO TRADE"?"red":"amber")}
+ function stop(){
+   if(state.ws){try{state.ws.close()}catch(e){} state.ws=null}
+   setConnection("Disconnected."); $("connect").textContent="Connect live data";
+ }
+ function connect(){
+   stop(); state.paused=false; $("pause").textContent="Pause"; state.symbol=$("symbol").value;
+   setConnection("Connecting to Deriv public market data…");
+   try{
+     const ws=new WebSocket("wss://ws.binaryws.com/websockets/v3?app_id=1089"); state.ws=ws;
+     ws.onopen=()=>{setConnection("Connected. Requesting historical ticks and live stream…");ws.send(JSON.stringify({ticks_history:state.symbol,count:1000,end:"latest",style:"ticks",req_id:1}));ws.send(JSON.stringify({ticks:state.symbol,subscribe:1,req_id:2}));$("connect").textContent="Reconnect";};
+     ws.onmessage=ev=>{
+       let m;try{m=JSON.parse(ev.data)}catch(e){return}
+       if(m.error){setConnection("API response: "+m.error.message);return}
+       if(m.msg_type==="history"&&m.history&&m.history.prices){
+         const prices=m.history.prices,times=m.history.times||[];
+         state.ticks=prices.map((q,i)=>({quote:String(q),digit:digitsFromPrice(q, String(q).split(".")[1]?.length||0),epoch:times[i]||null})).filter(t=>t.digit!==null).slice(-MAX);
+         render();setConnection("Historical sample loaded. Live stream active when ticks arrive.");
+       }
+       if(m.msg_type==="tick"&&m.tick&&!state.paused){
+         const q=m.tick.quote, d=digitsFromPrice(q, m.tick.pip_size);
+         if(d!==null){state.ticks.push({quote:String(q),digit:d,epoch:m.tick.epoch});if(state.ticks.length>MAX)state.ticks.shift();render();setConnection("Live stream active · last tick "+new Date(m.tick.epoch*1000).toLocaleTimeString());}
+       }
+     };
+     ws.onerror=()=>setConnection("Connection error. Check internet or tap Connect again.");
+     ws.onclose=(ev)=>{if(state.ws===ws){state.ws=null;setConnection("Connection closed (code "+ev.code+(ev.reason?", reason: "+ev.reason:"")+"). Tap Connect live data to retry.");}};
+   }catch(e){setConnection("Could not connect: "+e.message)}
+ }
+ $("connect").addEventListener("click",connect);
+ $("pause").addEventListener("click",()=>{state.paused=!state.paused;$("pause").textContent=state.paused?"Resume":"Pause";setConnection(state.paused?"Display updates paused; stream may continue.":"Display updates resumed.");});
+ $("symbol").addEventListener("change",()=>{if(state.ws)connect()});
+ $("target").addEventListener("change",render);$("payout").addEventListener("input",render);
+ render();
+})();
+</script>
+</body>
+</html>
